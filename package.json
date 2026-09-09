@@ -1,0 +1,22 @@
+{
+  "name": "e-commerce-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "E-commerce platform. Application code lives in bcp-dr.",
+  "scripts": {
+    "postinstall": "npm run install:all --prefix bcp-dr",
+    "install:all": "npm run install:all --prefix bcp-dr",
+    "migrate": "npm run migrate --prefix bcp-dr",
+    "migrate:undo": "npm run migrate:undo --prefix bcp-dr",
+    "seed": "npm run seed --prefix bcp-dr",
+    "db:setup": "npm run db:setup --prefix bcp-dr",
+    "dev": "npm run dev --prefix bcp-dr",
+    "dev:user": "npm run dev:user --prefix bcp-dr",
+    "dev:product": "npm run dev:product --prefix bcp-dr",
+    "dev:inventory": "npm run dev:inventory --prefix bcp-dr",
+    "dev:order": "npm run dev:order --prefix bcp-dr",
+    "dev:notification": "npm run dev:notification --prefix bcp-dr",
+    "dev:frontend": "npm run dev:frontend --prefix bcp-dr",
+    "test": "npm test --prefix bcp-dr"
+  }
+}

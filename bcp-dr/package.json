@@ -1,0 +1,33 @@
+{
+  "name": "cloudresilience",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CloudResilience local microservices application foundation",
+  "scripts": {
+    "install:all": "npm install && npm install --prefix shared && npm install --prefix services/user-service && npm install --prefix services/product-service && npm install --prefix services/inventory-service && npm install --prefix services/order-service && npm install --prefix services/notification-service && npm install --prefix frontend",
+    "migrate": "sequelize-cli db:migrate --config database/config.js --migrations-path database/migrations",
+    "migrate:undo": "sequelize-cli db:migrate:undo --config database/config.js --migrations-path database/migrations",
+    "seed": "sequelize-cli db:seed:all --config database/config.js --seeders-path database/seeders",
+    "db:setup": "npm run migrate && npm run seed",
+    "dev:user": "npm run dev --prefix services/user-service",
+    "dev:product": "npm run dev --prefix services/product-service",
+    "dev:inventory": "npm run dev --prefix services/inventory-service",
+    "dev:order": "npm run dev --prefix services/order-service",
+    "dev:notification": "npm run dev --prefix services/notification-service",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "dev": "concurrently -n user,product,inventory,order,notification,web -c blue,green,yellow,magenta,cyan,white \"npm run dev:user\" \"npm run dev:product\" \"npm run dev:inventory\" \"npm run dev:order\" \"npm run dev:notification\" \"npm run dev:frontend\"",
+    "test": "npm test --prefix services/user-service && npm test --prefix services/product-service && npm test --prefix services/inventory-service && npm test --prefix services/order-service && npm test --prefix services/notification-service"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "sequelize-cli": "^6.6.2",
+    "sqlite3": "^5.1.7"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.7",
+    "pg": "^8.13.1",
+    "pg-hstore": "^2.3.4",
+    "sequelize": "^6.37.5"
+  }
+}

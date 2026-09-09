@@ -1,0 +1,3 @@
+const ALLOWED_TYPES = ['ORDER_CREATED', 'ORDER_CANCELLED'];
+
+module.exports = { ALLOWED_TYPES };

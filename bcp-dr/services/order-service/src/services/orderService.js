@@ -1,4 +1,4 @@
-const { NotFoundError, ForbiddenError, ValidationAppError, AppError, ROLES } = require('@cloudresilience/shared');
+const { NotFoundError, ForbiddenError, ValidationAppError, AppError, ROLES, logger } = require('@cloudresilience/shared');
 const { Order, OrderItem, sequelize } = require('../models');
 const clients = require('../clients/serviceClients');
 const { calculateTotal } = require('../utils');
@@ -67,7 +67,7 @@ async function notifyOrderEvent({ actor, ownerId, orderId, type }) {
       message: ownerMessage
     });
   } catch (error) {
-    console.error('Failed to create owner notification:', error.message);
+    logger.error({ err: error, orderId, userId: ownerId, type }, 'Failed to create owner notification');
   }
 
   try {
@@ -87,7 +87,7 @@ async function notifyOrderEvent({ actor, ownerId, orderId, type }) {
       });
     }
   } catch (error) {
-    console.error('Failed to create admin notifications:', error.message);
+    logger.error({ err: error, orderId, type }, 'Failed to create admin notifications');
   }
 }
 

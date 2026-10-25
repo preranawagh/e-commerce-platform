@@ -1,6 +1,13 @@
 const { AppError } = require('../errors');
 
-function errorHandler(err, req, res, next) { // eslint-disable-line no-unused-vars
+// Express recognises error middleware by its four parameters, so `next` must stay.
+function errorHandler(err, req, res, next) {
+  // pino-http attaches res.err to the request log line, so unexpected errors
+  // are logged with their stack. Expected 4xx AppErrors stay out of the logs.
+  if (!(err instanceof AppError) || err.statusCode >= 500) {
+    res.err = err;
+  }
+
   if (err.name === 'SequelizeValidationError' || err.name === 'SequelizeUniqueConstraintError') {
     const details = (err.errors || []).map((item) => ({
       field: item.path,

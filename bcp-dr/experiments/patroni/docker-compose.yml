@@ -1,0 +1,203 @@
+name: bcp-dr
+
+networks:
+  bcp_dr_net:
+    name: bcp_dr_net
+    driver: bridge
+
+volumes:
+  etcd_data:
+  pg_data_node1:
+  pg_data_node2:
+
+x-spilo-environment: &spilo-environment
+  SCOPE: ecommerce-cluster
+  SPILO_PROVIDER: local
+  ETCD3_HOSTS: '"etcd:2379"'
+  PGUSER_SUPERUSER: postgres
+  PGPASSWORD_SUPERUSER: postgres1
+  PGUSER_STANDBY: standby
+  PGPASSWORD_STANDBY: standby
+  PGUSER_ADMIN: admin
+  PGPASSWORD_ADMIN: admin
+  ALLOW_NOSSL: "true"
+  PGVERSION: "15"
+  SPILO_CONFIGURATION: |
+    etcd3:
+      hosts: etcd:2379
+    bootstrap:
+      dcs:
+        ttl: 30
+        loop_wait: 10
+        retry_timeout: 10
+        maximum_lag_on_failover: 1048576
+        postgresql:
+          use_pg_rewind: true
+          use_slots: true
+          parameters:
+            max_connections: 100
+            shared_buffers: 32MB
+            wal_level: replica
+            hot_standby: "on"
+    postgresql:
+      use_pg_rewind: true
+      use_slots: true
+      remove_data_directory_on_rewind_failure: true
+      remove_data_directory_on_diverged_timelines: true
+      pg_hba:
+        - local all all trust
+        - host replication standby all md5
+        - host all all all md5
+
+services:
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.15
+    container_name: etcd
+    hostname: etcd
+    command:
+      - etcd
+      - --name=etcd
+      - --data-dir=/etcd-data
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://etcd:2380
+      - --initial-cluster=etcd=http://etcd:2380
+      - --initial-cluster-state=new
+      - --initial-cluster-token=bcp-dr-etcd
+      - --enable-v2=true
+    environment:
+      ETCDCTL_API: "3"
+      ETCDCTL_ENDPOINTS: http://127.0.0.1:2379
+    volumes:
+      - etcd_data:/etcd-data
+    ports:
+      - "2379:2379"
+    networks:
+      bcp_dr_net:
+        aliases:
+          - etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  pg-node1:
+    image: ghcr.io/zalando/spilo-15:3.2-p1
+    container_name: pg-node1
+    hostname: pg-node1
+    environment:
+      <<: *spilo-environment
+      PATRONI_NAME: pg-node1
+      PATRONI_RESTAPI_CONNECT_ADDRESS: pg-node1:8008
+      PATRONI_POSTGRESQL_CONNECT_ADDRESS: pg-node1:5432
+      SPILO_CONFIGURATION: |
+        etcd3:
+          hosts: etcd:2379
+        restapi:
+          connect_address: pg-node1:8008
+        postgresql:
+          connect_address: pg-node1:5432
+          use_pg_rewind: true
+          use_slots: true
+          remove_data_directory_on_rewind_failure: true
+          remove_data_directory_on_diverged_timelines: true
+        bootstrap:
+          dcs:
+            ttl: 30
+            loop_wait: 10
+            retry_timeout: 10
+            maximum_lag_on_failover: 1048576
+            postgresql:
+              use_pg_rewind: true
+              use_slots: true
+    volumes:
+      - pg_data_node1:/home/postgres/pgdata
+    shm_size: 128mb
+    ports:
+      - "8008:8008"
+    depends_on:
+      etcd:
+        condition: service_healthy
+    networks:
+      bcp_dr_net:
+        aliases:
+          - pg-node1
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 45s
+
+  pg-node2:
+    image: ghcr.io/zalando/spilo-15:3.2-p1
+    container_name: pg-node2
+    hostname: pg-node2
+    environment:
+      <<: *spilo-environment
+      PATRONI_NAME: pg-node2
+      PATRONI_RESTAPI_CONNECT_ADDRESS: pg-node2:8008
+      PATRONI_POSTGRESQL_CONNECT_ADDRESS: pg-node2:5432
+      SPILO_CONFIGURATION: |
+        etcd3:
+          hosts: etcd:2379
+        restapi:
+          connect_address: pg-node2:8008
+        postgresql:
+          connect_address: pg-node2:5432
+          use_pg_rewind: true
+          use_slots: true
+          remove_data_directory_on_rewind_failure: true
+          remove_data_directory_on_diverged_timelines: true
+        bootstrap:
+          dcs:
+            ttl: 30
+            loop_wait: 10
+            retry_timeout: 10
+            maximum_lag_on_failover: 1048576
+            postgresql:
+              use_pg_rewind: true
+              use_slots: true
+    volumes:
+      - pg_data_node2:/home/postgres/pgdata
+    shm_size: 128mb
+    ports:
+      - "8009:8008"
+    depends_on:
+      etcd:
+        condition: service_healthy
+    networks:
+      bcp_dr_net:
+        aliases:
+          - pg-node2
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 45s
+
+  haproxy:
+    image: haproxy:2.8
+    container_name: haproxy
+    hostname: haproxy
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    ports:
+      - "5000:5000"
+      - "7000:7000"
+    depends_on:
+      pg-node1:
+        condition: service_healthy
+      pg-node2:
+        condition: service_healthy
+    networks:
+      - bcp_dr_net
+    healthcheck:
+      test: ["CMD", "haproxy", "-c", "-f", "/usr/local/etc/haproxy/haproxy.cfg"]
+      interval: 10s
+      timeout: 5s
+      retries: 3

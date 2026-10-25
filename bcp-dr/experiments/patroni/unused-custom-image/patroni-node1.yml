@@ -1,0 +1,37 @@
+scope: ecommerce-cluster
+namespace: /service
+name: pg-node1
+
+etcd3:
+  hosts: etcd:2379
+
+restapi:
+  listen: 0.0.0.0:8008
+  connect_address: pg-node1:8008
+
+bootstrap:
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    postgresql:
+      use_pg_rewind: true
+      use_slots: true
+  initdb:
+    - encoding=UTF8
+    - data-checksums
+  pg_hba:
+    - host replication replicator 0.0.0.0/0 md5
+    - host all all 0.0.0.0/0 md5
+
+postgresql:
+  listen: 0.0.0.0:5432
+  connect_address: pg-node1:5432
+  data_dir: /data/patroni
+  authentication:
+    replication:
+      username: replicator
+      password: rep_password
+    superuser:
+      username: postgres
+      password: postgres_password

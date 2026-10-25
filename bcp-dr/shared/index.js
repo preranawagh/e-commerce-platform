@@ -5,6 +5,9 @@ const { createServiceClient, authHeader } = require('./httpClient');
 const { loadEnv } = require('./loadEnv');
 const { createSequelize } = require('./createSequelize');
 const { createApp } = require('./createApp');
+const { startServer } = require('./startServer');
+const { logger } = require('./logger');
+const { getRequestId } = require('./requestContext');
 const { errorHandler } = require('./middleware/errorHandler');
 const { notFound } = require('./middleware/notFound');
 const { authenticate } = require('./middleware/authenticate');
@@ -23,6 +26,9 @@ module.exports = {
   loadEnv,
   createSequelize,
   createApp,
+  startServer,
+  logger,
+  getRequestId,
   errorHandler,
   notFound,
   authenticate,

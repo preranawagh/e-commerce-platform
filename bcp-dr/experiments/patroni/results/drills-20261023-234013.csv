@@ -1,0 +1,9 @@
+run,scenario,old_leader,new_leader,promotion_s,first_fail_after_injection_s,write_rto_s,write_outage_s,acked_writes,acked_missing,unacked_but_present,rejoin_s
+switchover-1-20261023-234013,planned_switchover,pg-node2,pg-node1,4.0,1.3,6.2,5.0,45,0,0,1.7
+hard-1-20261023-234013,hard_failover,pg-node1,pg-node2,5.5,0.9,8.4,7.5,34,0,0,8.5
+hard-2-20261023-234013,hard_failover,pg-node2,pg-node1,5.4,0.9,6.0,5.1,35,0,0,10.1
+hard-3-20261023-234013,hard_failover,pg-node1,pg-node2,5.3,1.1,6.2,5.1,34,0,0,8.6
+crash-1-20261023-234013,crash_failover,pg-node2,pg-node1,28.3,0.9,28.3,27.4,32,0,0,15.0
+crash-2-20261023-234013,crash_failover,pg-node1,pg-node2,34.9,0.8,35.0,34.2,31,0,0,12.6
+crash-3-20261023-234013,crash_failover,pg-node2,pg-node1,26.8,0.6,27.7,27.0,34,0,0,19.8
+isolation-1-20261023-234013,network_isolation,pg-node1,pg-node2,29.5,0.8,29.5,28.6,122,0,0,12.8

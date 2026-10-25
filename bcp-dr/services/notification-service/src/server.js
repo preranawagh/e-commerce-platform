@@ -1,15 +1,9 @@
+const { startServer, logger } = require('@cloudresilience/shared');
 const app = require('./app');
 const { sequelize } = require('./models');
 const { port } = require('./config');
 
-async function start() {
-  await sequelize.authenticate();
-  app.listen(port, () => {
-    console.log(`Notification Service listening on http://localhost:${port}`);
-  });
-}
-
-start().catch((error) => {
-  console.error('Failed to start Notification Service:', error.message);
+startServer({ app, port, serviceName: 'notification-service', sequelize }).catch((error) => {
+  logger.fatal({ err: error }, 'Failed to start Notification Service');
   process.exit(1);
 });

@@ -1,0 +1,58 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Environment / secrets
+.env
+**/.env
+.env.*
+**/.env.*
+!.env.example
+!**/.env.example
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Frontend build/cache
+frontend/dist
+frontend/.vite
+frontend/node_modules
+
+# Logs
+*.log
+logs
+**/logs
+
+# Test / coverage output
+coverage
+**/coverage
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE/editor
+.vscode
+.idea
+*.swp
+*.swo
+
+# Temporary files
+tmp
+temp
+*.tmp
+
+# Experiments (Patroni lab etc.) are not part of the application images
+experiments
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.docker
+
+# Documentation that isn't required at runtime
+README.md
+**/README.md

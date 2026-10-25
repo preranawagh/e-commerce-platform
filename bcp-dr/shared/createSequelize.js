@@ -1,4 +1,20 @@
 const { Sequelize } = require('sequelize');
+const { logger } = require('./logger');
+
+// TLS for managed databases (e.g. Cloud SQL without the Auth Proxy).
+function sslOptions() {
+  if (process.env.DB_SSL !== 'true') {
+    return {};
+  }
+  return {
+    dialectOptions: {
+      ssl: {
+        require: true,
+        rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false'
+      }
+    }
+  };
+}
 
 function createSequelize() {
   if (process.env.NODE_ENV === 'test') {
@@ -20,7 +36,15 @@ function createSequelize() {
       host: process.env.DB_HOST || 'localhost',
       port: Number(process.env.DB_PORT || 5432),
       dialect: 'postgres',
-      logging: process.env.DB_LOGGING === 'true' ? console.log : false,
+      logging: process.env.DB_LOGGING === 'true' ? (sql) => logger.info({ sql }, 'SQL') : false,
+      // Fail fast while the database is unavailable (e.g. during failover)
+      // instead of holding requests for Sequelize's 60 s default.
+      pool: {
+        max: Number(process.env.DB_POOL_MAX || 5),
+        acquire: Number(process.env.DB_POOL_ACQUIRE_MS || 10000),
+        idle: 10000
+      },
+      ...sslOptions(),
       define: {
         freezeTableName: true
       }
@@ -28,4 +52,4 @@ function createSequelize() {
   );
 }
 
-module.exports = { createSequelize };
+module.exports = { createSequelize, sslOptions };

@@ -25,7 +25,7 @@ function authenticate(req, res, next) {
     };
     req.token = token;
     return next();
-  } catch (error) {
+  } catch {
     return next(new UnauthorizedError('Invalid or expired token'));
   }
 }

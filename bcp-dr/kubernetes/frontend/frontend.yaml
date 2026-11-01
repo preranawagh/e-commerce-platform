@@ -1,0 +1,175 @@
+# frontend (React build served by unprivileged nginx) on Kubernetes.
+# The Gateway sends "/" here; "/api/<service>" goes straight to the services.
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: frontend
+  namespace: cloudresilience
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: cloudresilience
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: cloudresilience
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/component: web
+    app.kubernetes.io/part-of: cloudresilience
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: frontend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: frontend
+        app.kubernetes.io/component: web
+        app.kubernetes.io/part-of: cloudresilience
+    spec:
+      serviceAccountName: frontend
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 15
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101    # the nginx-unprivileged image's "nginx" user
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: frontend
+          matchLabelKeys: ["pod-template-hash"]
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: frontend
+          matchLabelKeys: ["pod-template-hash"]
+      containers:
+        - name: frontend
+          image: cloudresilience/frontend:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          # nginx's resolver does not use the pod's DNS search list, so its
+          # own /api proxy needs fully qualified service names here.
+          env:
+            - name: USER_SERVICE_URL
+              value: http://user-service.cloudresilience.svc.cluster.local:3001
+            - name: PRODUCT_SERVICE_URL
+              value: http://product-service.cloudresilience.svc.cluster.local:3002
+            - name: INVENTORY_SERVICE_URL
+              value: http://inventory-service.cloudresilience.svc.cluster.local:3003
+            - name: ORDER_SERVICE_URL
+              value: http://order-service.cloudresilience.svc.cluster.local:3004
+            - name: NOTIFICATION_SERVICE_URL
+              value: http://notification-service.cloudresilience.svc.cluster.local:3005
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 2
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          # nginx renders its config into conf.d at start and keeps temp files in /tmp.
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: conf
+              mountPath: /etc/nginx/conf.d
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 32Mi
+        - name: conf
+          emptyDir:
+            sizeLimit: 1Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: cloudresilience
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: cloudresilience
+spec:
+  selector:
+    app.kubernetes.io/name: frontend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: frontend
+  namespace: cloudresilience
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: cloudresilience
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: frontend
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frontend
+  namespace: cloudresilience
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: cloudresilience
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: frontend

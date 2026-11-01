@@ -1,0 +1,196 @@
+# notification-service on Kubernetes: identity, Deployment, Service, autoscaler and
+# disruption budget. Same pattern as user-service.
+
+# Its own identity in the cluster. It never talks to the Kubernetes API, so no
+# API token is mounted into its pods.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: notification-service
+  namespace: cloudresilience
+  labels:
+    app.kubernetes.io/name: notification-service
+    app.kubernetes.io/part-of: cloudresilience
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: cloudresilience
+  labels:
+    app.kubernetes.io/name: notification-service
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: cloudresilience
+spec:
+  # Matches the autoscaler minimum; the autoscaler may add more under load.
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: notification-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # During an update, start a new pod before stopping an old one.
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: notification-service
+        app.kubernetes.io/component: api
+        app.kubernetes.io/part-of: cloudresilience
+    spec:
+      serviceAccountName: notification-service
+      automountServiceAccountToken: false
+      # Longer than SHUTDOWN_TIMEOUT_MS (10 s) so graceful shutdown can finish.
+      terminationGracePeriodSeconds: 20
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000   # the image's "node" user
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      # Prefer one pod per zone and per node. "ScheduleAnyway" keeps this a
+      # preference, so pods can still be rescheduled while a zone is down.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: notification-service
+          matchLabelKeys: ["pod-template-hash"]
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: notification-service
+          matchLabelKeys: ["pod-template-hash"]
+      containers:
+        - name: notification-service
+          image: cloudresilience/notification-service:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3005
+          envFrom:
+            - configMapRef:
+                name: app-config
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: DB_PASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: JWT_SECRET
+            - name: INTERNAL_SERVICE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: INTERNAL_SERVICE_TOKEN
+          # Startup: give the process up to 60 s to start listening.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 2
+            failureThreshold: 30
+          # Readiness: only send traffic while the database answers (/ready).
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
+          # Liveness: restart the container if the process stops responding.
+          # Uses /health (not /ready) so a database outage does not restart every pod.
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
+---
+# Stable in-cluster address: http://notification-service:3005
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  namespace: cloudresilience
+  labels:
+    app.kubernetes.io/name: notification-service
+    app.kubernetes.io/part-of: cloudresilience
+spec:
+  selector:
+    app.kubernetes.io/name: notification-service
+  ports:
+    - name: http
+      port: 3005
+      targetPort: http
+---
+# Add pods when average CPU passes 70% of the request (needs metrics-server).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: notification-service
+  namespace: cloudresilience
+  labels:
+    app.kubernetes.io/name: notification-service
+    app.kubernetes.io/part-of: cloudresilience
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: notification-service
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+# Voluntary disruptions (node drain, upgrades) must leave at least one pod running.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: notification-service
+  namespace: cloudresilience
+  labels:
+    app.kubernetes.io/name: notification-service
+    app.kubernetes.io/part-of: cloudresilience
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: notification-service

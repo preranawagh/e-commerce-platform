@@ -1,0 +1,24 @@
+# Local Kubernetes cluster for CloudResilience (Phase 4).
+# 1 control-plane + 3 workers, each worker in a different "zone",
+# to imitate a 3-zone cloud region on one laptop.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: cloudresilience
+nodes:
+  - role: control-plane
+    # Opens http://localhost:8090 on your PC into the cluster.
+    # We'll connect the website to it in Step 4.
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 8090
+        listenAddress: "127.0.0.1"
+        protocol: TCP
+  - role: worker
+    labels:
+      topology.kubernetes.io/zone: zone-a
+  - role: worker
+    labels:
+      topology.kubernetes.io/zone: zone-b
+  - role: worker
+    labels:
+      topology.kubernetes.io/zone: zone-c

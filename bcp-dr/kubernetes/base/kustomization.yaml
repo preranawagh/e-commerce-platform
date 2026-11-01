@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - migrate-job.yaml
+  # The five services (Step 3)
+  - ../user-service
+  - ../product-service
+  - ../inventory-service
+  - ../order-service
+  - ../notification-service
+  # Website and front door (Step 4)
+  - ../frontend
+  - ../gateway
+  # Zero-trust traffic rules (Step 5)
+  - ../network-policies

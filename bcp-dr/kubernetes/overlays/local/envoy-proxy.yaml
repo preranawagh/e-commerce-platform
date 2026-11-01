@@ -1,0 +1,26 @@
+# kind has no cloud load balancer, so expose the Envoy proxy as a NodePort on
+# 30080. kind-cluster.yaml maps that port to http://localhost:8090 on the host.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: kind-nodeport
+  namespace: cloudresilience
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyDeployment:
+        replicas: 2
+      envoyService:
+        type: NodePort
+        # Envoy Gateway defaults to Local, which only answers on nodes running
+        # an Envoy pod. Port 8090 enters through the control plane, which runs
+        # none, so let any node forward the traffic.
+        externalTrafficPolicy: Cluster
+        patch:
+          type: StrategicMerge
+          value:
+            spec:
+              ports:
+                - port: 80
+                  nodePort: 30080

@@ -1,0 +1,148 @@
+# Full CloudResilience application stack in containers.
+#
+#   cd docker
+#   cp .env.example .env        # then set real secrets
+#   docker compose up -d --build --wait
+#
+# App: http://localhost:8088 (FRONTEND_PORT) · services on 127.0.0.1:3001-3005 (for npm run e2e:docker)
+# Startup order: postgres (healthy) → migrate (runs once) → 5 services → frontend.
+
+name: cloudresilience
+
+x-db-env: &db-env
+  DB_HOST: ${DB_HOST:-postgres}
+  DB_PORT: ${DB_PORT:-5432}
+  DB_NAME: ${DB_NAME:-cloudresilience}
+  DB_USER: ${DB_USER:-cloudresilience}
+  DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in docker/.env}
+
+x-service-env: &service-env
+  <<: *db-env
+  JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in docker/.env}
+  JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
+  INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?Set INTERNAL_SERVICE_TOKEN in docker/.env}
+  CORS_ORIGIN: http://localhost:${FRONTEND_PORT:-8088}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  USER_SERVICE_URL: http://user-service:3001
+  PRODUCT_SERVICE_URL: http://product-service:3002
+  INVENTORY_SERVICE_URL: http://inventory-service:3003
+  ORDER_SERVICE_URL: http://order-service:3004
+  NOTIFICATION_SERVICE_URL: http://notification-service:3005
+
+# Shared hardening for the Node services (mirrors the Kubernetes securityContext planned for Phase 4).
+x-service: &service
+  restart: unless-stopped
+  environment: *service-env
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop: [ALL]
+  security_opt:
+    - no-new-privileges:true
+  mem_limit: 256m
+  cpus: 0.5
+  stop_grace_period: 15s
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-cloudresilience}
+      POSTGRES_USER: ${DB_USER:-cloudresilience}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in docker/.env}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: database/Dockerfile
+    image: cloudresilience/migrate:local
+    restart: "no"
+    environment:
+      <<: *db-env
+      BCDR_PROBE_EMAIL: ${BCDR_PROBE_EMAIL:-bcdr-probe@example.com}
+      BCDR_PROBE_PASSWORD: ${BCDR_PROBE_PASSWORD:?Set BCDR_PROBE_PASSWORD in docker/.env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: false   # absent when using the Patroni override
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+  user-service:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: services/user-service/Dockerfile
+    image: cloudresilience/user-service:local
+    ports:
+      - "127.0.0.1:3001:3001"
+
+  product-service:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: services/product-service/Dockerfile
+    image: cloudresilience/product-service:local
+    ports:
+      - "127.0.0.1:3002:3002"
+
+  inventory-service:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: services/inventory-service/Dockerfile
+    image: cloudresilience/inventory-service:local
+    ports:
+      - "127.0.0.1:3003:3003"
+
+  order-service:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: services/order-service/Dockerfile
+    image: cloudresilience/order-service:local
+    ports:
+      - "127.0.0.1:3004:3004"
+
+  notification-service:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: services/notification-service/Dockerfile
+    image: cloudresilience/notification-service:local
+    ports:
+      - "127.0.0.1:3005:3005"
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: frontend/Dockerfile
+    image: cloudresilience/frontend:local
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-8088}:8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /etc/nginx/conf.d:uid=101,gid=101
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    cpus: 0.5
+
+volumes:
+  pg_data:

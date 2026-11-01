@@ -1,0 +1,35 @@
+# Optional override: run the containerised app against the Patroni HA lab
+# (experiments/patroni) instead of the single local postgres container.
+#
+#   (cd ../experiments/patroni && docker compose up -d --wait)
+#   docker compose -f docker-compose.yml -f docker-compose.patroni.yml up -d --build --wait
+#
+# The app then writes through HAProxy (haproxy:5000 on bcp_dr_net), so the
+# Patroni failover drills can be run while the containerised app is live.
+# The cloudresilience database must already exist on the cluster
+# (see experiments/patroni/PATRONI_BCP_TESTING.md, section 0).
+
+x-patroni-db: &patroni-db
+  DB_HOST: haproxy
+  DB_PORT: "5000"
+  DB_USER: postgres
+  DB_PASSWORD: ${PATRONI_DB_PASSWORD:-postgres1}   # lab credential from experiments/patroni
+
+x-patroni-service: &patroni-service
+  environment: *patroni-db
+  networks: [default, patroni]
+
+services:
+  postgres:
+    profiles: [local-postgres]   # not started with this override
+  migrate: *patroni-service
+  user-service: *patroni-service
+  product-service: *patroni-service
+  inventory-service: *patroni-service
+  order-service: *patroni-service
+  notification-service: *patroni-service
+
+networks:
+  patroni:
+    name: bcp_dr_net
+    external: true

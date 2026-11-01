@@ -17,6 +17,7 @@
     "dev:frontend": "npm run dev --prefix frontend",
     "dev": "concurrently -n user,product,inventory,order,notification,web -c blue,green,yellow,magenta,cyan,white \"npm run dev:user\" \"npm run dev:product\" \"npm run dev:inventory\" \"npm run dev:order\" \"npm run dev:notification\" \"npm run dev:frontend\"",
     "e2e": "node scripts/e2e-business-flow.js",
+    "e2e:docker": "node --env-file=docker/.env scripts/e2e-business-flow.js",
     "lint": "eslint .",
     "test": "npm test --prefix services/user-service && npm test --prefix services/product-service && npm test --prefix services/inventory-service && npm test --prefix services/order-service && npm test --prefix services/notification-service"
   },

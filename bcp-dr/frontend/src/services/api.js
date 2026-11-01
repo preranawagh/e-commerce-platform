@@ -1,9 +1,13 @@
+// Default: same origin. Every API path starts with /api/<service>, and the web
+// server in front of the app (Vite dev proxy, nginx in the container, the
+// Kubernetes Ingress later) routes each prefix to its service. Set a VITE_*
+// variable only to call a service on another origin directly.
 const SERVICE_URLS = {
-  users: import.meta.env.VITE_USER_SERVICE_URL || 'http://localhost:3001',
-  products: import.meta.env.VITE_PRODUCT_SERVICE_URL || 'http://localhost:3002',
-  inventory: import.meta.env.VITE_INVENTORY_SERVICE_URL || 'http://localhost:3003',
-  orders: import.meta.env.VITE_ORDER_SERVICE_URL || 'http://localhost:3004',
-  notifications: import.meta.env.VITE_NOTIFICATION_SERVICE_URL || 'http://localhost:3005'
+  users: import.meta.env.VITE_USER_SERVICE_URL || '',
+  products: import.meta.env.VITE_PRODUCT_SERVICE_URL || '',
+  inventory: import.meta.env.VITE_INVENTORY_SERVICE_URL || '',
+  orders: import.meta.env.VITE_ORDER_SERVICE_URL || '',
+  notifications: import.meta.env.VITE_NOTIFICATION_SERVICE_URL || ''
 };
 
 function getToken() {

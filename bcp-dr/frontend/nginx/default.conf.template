@@ -1,0 +1,69 @@
+# Rendered at container start by the nginx image's envsubst step
+# (/etc/nginx/templates → /etc/nginx/conf.d). ${VARS} come from the environment.
+
+# /api/<service>/... → that service. Paths are forwarded unchanged.
+map $api_service $api_upstream {
+    users          ${USER_SERVICE_URL};
+    products       ${PRODUCT_SERVICE_URL};
+    inventory      ${INVENTORY_SERVICE_URL};
+    orders         ${ORDER_SERVICE_URL};
+    notifications  ${NOTIFICATION_SERVICE_URL};
+}
+
+server {
+    listen 8080;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+    server_tokens off;
+
+    # Resolve service names per request (not once at startup), so a recreated
+    # container or pod with a new IP is picked up within `valid`.
+    resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=off;
+    resolver_timeout 2s;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # Liveness of the web tier itself (does not touch the services).
+    location = /healthz {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    location ~ ^/api/(?<api_service>users|products|inventory|orders|notifications)(?:/|$) {
+        proxy_pass $api_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 30s;
+        # The services also send these (helmet); keep a single, consistent value.
+        proxy_hide_header X-Frame-Options;
+        proxy_hide_header X-Content-Type-Options;
+    }
+
+    # Unknown API paths are a JSON 404, not the SPA's index.html.
+    location /api/ {
+        default_type application/json;
+        return 404 '{"success":false,"error":{"message":"Not found"}}';
+    }
+
+    # Hashed build assets can be cached for a long time.
+    location /assets/ {
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    # Single-page app: unknown paths fall back to index.html for the router.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

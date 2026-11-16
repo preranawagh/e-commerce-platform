@@ -1,0 +1,11 @@
+# Copy to terraform.tfvars (git-ignored) and fill in.
+project_id = "cloudresilience-dev-12345"
+
+# Defaults: Mumbai, 3 zones, 1 e2-medium node per zone, HA Cloud SQL.
+# region = "asia-south1"
+# zones  = ["asia-south1-a", "asia-south1-b", "asia-south1-c"]
+
+# Pause between work sessions (no node cost):
+# nodes_per_zone = 0
+
+# alert_email = "you@example.com"

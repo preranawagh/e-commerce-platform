@@ -12,3 +12,12 @@ Thumbs.db
 *.sqlite3
 npm-debug.log*
 .cache/
+
+# Terraform: providers, state and local settings (never commit state — it holds secrets)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+terraform.tfvars
+backend.hcl
+crash.log

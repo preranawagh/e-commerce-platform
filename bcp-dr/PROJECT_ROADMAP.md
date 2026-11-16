@@ -245,20 +245,22 @@ Shared (`kubernetes/base/`, `kubernetes/ingress/`):
 
 ---
 
-### Phase 5 — GCP via Terraform (+ Cloud SQL HA/PITR)
+### Phase 5 — GCP via Terraform (+ Cloud SQL HA/PITR) · 🟡 *started 2026-11-14*
 
-**Prerequisites:** install Terraform + gcloud CLI; GCP project with billing; **set a budget alert**. Regional GKE + Cloud SQL HA cost real money → `terraform destroy` (or scale to zero) between experiment sessions; keep `deletion_protection` on Cloud SQL except when deliberately testing infra loss.
+**Prerequisites:** install Terraform + gcloud CLI; GCP project with billing; **set a budget alert**.
+
+> **Status 2026-11-14:** ✅ Terraform 1.17.1 + gcloud 593.0.0 installed · ✅ Free Trial active (₹28,569 credit, expires **2027-02-13**) · ✅ project `cloudresilience-dev` in organisation `waghprerana07-org`, billing enabled · ✅ budget `cloudresilience-trial` ₹4,000/month, credits excluded, alerts 25/50/90/100 % · ✅ gcloud + application-default credentials · Org policies (secure-by-default): no service-account keys, uniform bucket access, protocol forwarding INTERNAL only, no automatic grants to default service accounts — all compatible with the Terraform design. ⚠️ UPI autopay mandate expires **2026-12-31**: check Billing → Payment method around 2026-12-24 and renew if asked. Regional GKE + Cloud SQL HA cost real money → `terraform destroy` (or scale to zero) between experiment sessions; keep `deletion_protection` on Cloud SQL except when deliberately testing infra loss.
 
 **Tasks** (`terraform/modules/*`, `terraform/environments/dev`):
-- [ ] Remote state in a GCS bucket (versioned) — bootstrap once, documented.
-- [ ] `network`: custom VPC, subnet with secondary ranges for pods/services, Cloud NAT, firewall rules, Private Service Access for Cloud SQL.
-- [ ] `gke`: **regional** cluster across 3 zones (Standard with small node pool, or Autopilot — decision **D4**), Workload Identity, private nodes, release channel, network policy enabled.
-- [ ] `cloudsql`: PostgreSQL 15, **`availability_type = REGIONAL` (HA)**, automated backups, **PITR (WAL retention)**, private IP only, `deletion_protection`, maintenance window, `cloudresilience` database + app user.
-- [ ] `storage`: bucket for exports/backups and for BCDR report archival (versioning, lifecycle).
-- [ ] `artifact-registry`: Docker repo for the 6 images.
-- [ ] `secret-manager`: JWT secret, internal token, DB password; surfaced to pods via Secret Manager CSI driver or External Secrets.
-- [ ] `iam`: least-privilege GSAs — per-service runtime SA (Cloud SQL client, secret accessor), **BCDR controller SA** (GKE developer, Cloud SQL admin for failover/restore, storage object admin on report bucket), CI deployer SA via Workload Identity Federation (no JSON keys).
-- [ ] `monitoring`: uptime checks on the Ingress, alert policies (pod restarts, DB down, 5xx rate), log-based metrics.
+- [x] Remote state in a GCS bucket (versioned) — bootstrap once, documented. *(2026-11-14 — `gs://cloudresilience-dev-tfstate`, asia-south1, public access blocked, uniform access, versioned (20 newest kept), `prevent_destroy`; created by `terraform/bootstrap/`; dev uses it via git-ignored `backend.hcl`)*
+- [ ] `network`: custom VPC, subnet with secondary ranges for pods/services, Cloud NAT, firewall rules, Private Service Access for Cloud SQL. *(code written + `terraform validate` clean 2026-11-14; not applied yet)*
+- [ ] `gke`: **regional** cluster across 3 zones (Standard with small node pool, or Autopilot — decision **D4**), Workload Identity, private nodes, release channel, network policy enabled. *(code written + `terraform validate` clean 2026-11-14; not applied yet)*
+- [ ] `cloudsql`: PostgreSQL 15, **`availability_type = REGIONAL` (HA)**, automated backups, **PITR (WAL retention)**, private IP only, `deletion_protection`, maintenance window, `cloudresilience` database + app user. *(code written + `terraform validate` clean 2026-11-14; not applied yet)*
+- [ ] `storage`: bucket for exports/backups and for BCDR report archival (versioning, lifecycle). *(code written + `terraform validate` clean 2026-11-14; not applied yet)*
+- [ ] `artifact-registry`: Docker repo for the 6 images. *(code written + `terraform validate` clean 2026-11-14; not applied yet)*
+- [ ] `secret-manager`: JWT secret, internal token, DB password; surfaced to pods via Secret Manager CSI driver or External Secrets. *(code written + `terraform validate` clean 2026-11-14; not applied yet)*
+- [ ] `iam`: least-privilege GSAs — per-service runtime SA (Cloud SQL client, secret accessor), **BCDR controller SA** (GKE developer, Cloud SQL admin for failover/restore, storage object admin on report bucket), CI deployer SA via Workload Identity Federation (no JSON keys). *(code written + `terraform validate` clean 2026-11-14; not applied yet)*
+- [ ] `monitoring`: uptime checks on the Ingress, alert policies (pod restarts, DB down, 5xx rate), log-based metrics. *(code written + `terraform validate` clean 2026-11-14; not applied yet)*
 - [ ] Deploy the app via `kubernetes/overlays/gke`; DNS (Cloud DNS) optional — the LB IP is enough for the project.
 
 **DoD:** `terraform apply` from scratch produces a working environment; app reachable via Cloud Load Balancer; e2e script passes in GCP; Cloud SQL HA + PITR verified enabled; `terraform destroy` + `apply` cycle documented and timed (feeds Scenario 6).
@@ -448,12 +450,12 @@ Build these progressively — checkboxes are tagged with the phase in which they
 | D1 | Repository root | (a) make `bcp-dr/` the git root; (b) keep `e-commerce-platform/` as root with `.github/` there and CI `working-directory: bcp-dr` | (b) — existing GitHub repo, no history rewrite | **Decided (b)** — [0002](docs/decisions/0002-repository-root.md) |
 | D2 | Controller language | Node.js / Python | Node.js (stack reuse, shared e2e script) | Open |
 | D3 | Local K8s for dev | kind / minikube / Docker Desktop K8s | kind (multi-node → can simulate node failure + zone labels) | **Decided: kind** (v0.33, 1 control plane + 3 workers in zone-a/b/c) |
-| D4 | GKE mode | Standard regional / Autopilot regional | Standard (node failure scenario needs node-level control) | Open |
-| D5 | GCP region | e.g. `asia-south1`, `us-central1` | Closest region with 3 zones and lowest cost | Open |
+| D4 | GKE mode | Standard regional / Autopilot regional | Standard (node failure scenario needs node-level control) | **Default in code:** Standard *multi-zonal* (zonal control plane → fee covered by free tier; nodes in 3 zones) |
+| D5 | GCP region | e.g. `asia-south1`, `us-central1` | Closest region with 3 zones and lowest cost | **Default in code:** `asia-south1` (one variable to change) |
 | D6 | Cloud SQL access from pods | Auth Proxy sidecar / private IP direct | Private IP + Auth Proxy sidecar (IAM auth, TLS) | Open |
 | D7 | Incident persistence | JSON files / SQLite / Cloud SQL table | JSON files in `bcdr/reports/` + archive to GCS | Open |
 | D8 | Scenario 6 in scope? | yes / stretch | Stretch goal | **Decided: stretch** — [0001](docs/decisions/0001-scope.md) |
-| D9 | Target platform | GCP / VM-based | GCP primary, VM-based fallback | **Decided** — gate at start of Phase 5 ([0001 §4](docs/decisions/0001-scope.md)) |
+| D9 | Target platform | GCP / VM-based | GCP primary, VM-based fallback | **Decided: GCP** — gate passed 2026-11-14 ([0001 §4](docs/decisions/0001-scope.md)) |
 
 ---
 
@@ -477,6 +479,8 @@ Append entries as decisions are made (date · ID · decision · reason).
 | 2026-11-01 | D3 | kind for the local cluster; 3 workers labelled `topology.kubernetes.io/zone` zone-a/b/c; web on :8090 | Multi-node, can stop a "zone" with `docker stop`; mirrors a 3-zone GKE region |
 | 2026-11-01 | — | Gateway API + Envoy Gateway instead of Ingress + ingress-nginx | ingress-nginx is retired; Gateway API is the current standard and GKE has its own Gateway controller for Phase 5 |
 | 2026-11-01 | — | On kind, the Envoy NodePort uses `externalTrafficPolicy: Cluster` | Envoy Gateway's default `Local` drops traffic arriving at the control plane (where kind maps :8090), which runs no Envoy pod. On GKE the cloud load balancer health-checks nodes, so `Local` is fine there |
+| 2026-11-14 | D9 | Phase 5 decision gate passed: **GCP** (not the VM fallback), funded by the $300 / 90-day Free Trial, with education credits requested as backup | Fits the budget if the environment is torn down between sessions (~$0.30/h active, ~$0.15/day idle; ~$200+/month if left on). One trial per customer — no extra accounts for more credit. Trial signup is delayed until infrastructure code is ready, because its 90 days can't be paused |
+| 2026-11-14 | — | Terraform: google provider `~> 8.11`; GKE Standard multi-zonal, private nodes, DNS-based control-plane endpoint, Dataplane V2, Workload Identity, Gateway API; Cloud SQL PG16 Enterprise HA + 7-day PITR, private IP, encrypted connections, pgAudit | Checkov 3.4.5: 107 passed, 0 failed, 10 skipped with in-code reasons (PG16 to match tested stack, no client certs, no log_duration, Dataplane V2 instead of legacy network policy, metadata server on node pool, no Workspace groups, Binary Authorization deferred to CI, Google-managed keys, no bucket access-log bucket ×2) |
 | 2026-11-01 | — | Liveness uses `/health`, readiness `/ready`; zone spread is `ScheduleAnyway` | A DB outage must not restart every pod; pods must still be schedulable while a zone is down |
 | 2026-11-01 | — | Secrets created with `kubectl create secret` from random values, never stored in files; each service gets only the keys it uses | Least privilege; nothing secret in git (GKE will use Secret Manager) |
 | 2026-11-01 | — | metrics-server and the Gateway controller are cluster add-ons installed by the owner, not part of the app's Kustomize build | They are third-party, cluster-wide components; GKE provides its own |

@@ -25,6 +25,12 @@ variable "tier" {
   description = "Machine type. Shared-core tiers have no SLA and are not used for HA experiments."
 }
 
+variable "running" {
+  type        = bool
+  default     = true
+  description = "false stops the instance between work sessions (data and backups are kept)."
+}
+
 variable "high_availability" {
   type    = bool
   default = true

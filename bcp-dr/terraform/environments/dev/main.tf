@@ -73,6 +73,7 @@ module "cloudsql" {
   network_id                  = module.network.network_id
   private_services_connection = module.network.private_services_connection
   tier                        = var.db_tier
+  running                     = var.db_running
   high_availability           = var.db_high_availability
   deletion_protection         = var.db_deletion_protection
   labels                      = local.labels

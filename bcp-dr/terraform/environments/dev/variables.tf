@@ -39,6 +39,12 @@ variable "db_tier" {
   default = "db-custom-1-3840"
 }
 
+variable "db_running" {
+  type        = bool
+  default     = true
+  description = "Set to false between work sessions to stop the database (storage still billed)."
+}
+
 variable "db_high_availability" {
   type        = bool
   default     = true

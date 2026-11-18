@@ -15,6 +15,7 @@ resource "google_sql_database_instance" "this" {
   settings {
     edition           = "ENTERPRISE"
     tier              = var.tier
+    activation_policy = var.running ? "ALWAYS" : "NEVER" # NEVER = stopped; only storage is billed
     availability_type = var.high_availability ? "REGIONAL" : "ZONAL"
     disk_type         = "PD_SSD"
     disk_size         = 10

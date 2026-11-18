@@ -5,7 +5,8 @@ project_id = "cloudresilience-dev-12345"
 # region = "asia-south1"
 # zones  = ["asia-south1-a", "asia-south1-b", "asia-south1-c"]
 
-# Pause between work sessions (no node cost):
+# Pause between work sessions (no node or database compute cost):
 # nodes_per_zone = 0
+# db_running     = false
 
 # alert_email = "you@example.com"

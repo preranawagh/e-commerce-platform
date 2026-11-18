@@ -253,14 +253,18 @@ Shared (`kubernetes/base/`, `kubernetes/ingress/`):
 
 **Tasks** (`terraform/modules/*`, `terraform/environments/dev`):
 - [x] Remote state in a GCS bucket (versioned) — bootstrap once, documented. *(2026-11-14 — `gs://cloudresilience-dev-tfstate`, asia-south1, public access blocked, uniform access, versioned (20 newest kept), `prevent_destroy`; created by `terraform/bootstrap/`; dev uses it via git-ignored `backend.hcl`)*
-- [ ] `network`: custom VPC, subnet with secondary ranges for pods/services, Cloud NAT, firewall rules, Private Service Access for Cloud SQL. *(code written + `terraform validate` clean 2026-11-14; not applied yet)*
-- [ ] `gke`: **regional** cluster across 3 zones (Standard with small node pool, or Autopilot — decision **D4**), Workload Identity, private nodes, release channel, network policy enabled. *(code written + `terraform validate` clean 2026-11-14; not applied yet)*
-- [ ] `cloudsql`: PostgreSQL 15, **`availability_type = REGIONAL` (HA)**, automated backups, **PITR (WAL retention)**, private IP only, `deletion_protection`, maintenance window, `cloudresilience` database + app user. *(code written + `terraform validate` clean 2026-11-14; not applied yet)*
-- [ ] `storage`: bucket for exports/backups and for BCDR report archival (versioning, lifecycle). *(code written + `terraform validate` clean 2026-11-14; not applied yet)*
-- [ ] `artifact-registry`: Docker repo for the 6 images. *(code written + `terraform validate` clean 2026-11-14; not applied yet)*
-- [ ] `secret-manager`: JWT secret, internal token, DB password; surfaced to pods via Secret Manager CSI driver or External Secrets. *(code written + `terraform validate` clean 2026-11-14; not applied yet)*
-- [ ] `iam`: least-privilege GSAs — per-service runtime SA (Cloud SQL client, secret accessor), **BCDR controller SA** (GKE developer, Cloud SQL admin for failover/restore, storage object admin on report bucket), CI deployer SA via Workload Identity Federation (no JSON keys). *(code written + `terraform validate` clean 2026-11-14; not applied yet)*
-- [ ] `monitoring`: uptime checks on the Ingress, alert policies (pod restarts, DB down, 5xx rate), log-based metrics. *(code written + `terraform validate` clean 2026-11-14; not applied yet)*
+- [x] `network`: custom VPC, subnet with secondary ranges for pods/services, Cloud NAT, firewall rules, Private Service Access for Cloud SQL. *(applied 2026-11-16)*
+- [x] `gke`: **regional** cluster across 3 zones (Standard with small node pool, or Autopilot — decision **D4**), Workload Identity, private nodes, release channel, network policy enabled. *(applied 2026-11-16)*
+- [x] `cloudsql`: PostgreSQL 15, **`availability_type = REGIONAL` (HA)**, automated backups, **PITR (WAL retention)**, private IP only, `deletion_protection`, maintenance window, `cloudresilience` database + app user. *(applied 2026-11-16)*
+- [x] `storage`: bucket for exports/backups and for BCDR report archival (versioning, lifecycle). *(applied 2026-11-16)*
+- [x] `artifact-registry`: Docker repo for the 6 images. *(applied 2026-11-16)*
+- [x] `secret-manager`: JWT secret, internal token, DB password; surfaced to pods via Secret Manager CSI driver or External Secrets. *(applied 2026-11-16)*
+- [x] `iam`: least-privilege GSAs — per-service runtime SA (Cloud SQL client, secret accessor), **BCDR controller SA** (GKE developer, Cloud SQL admin for failover/restore, storage object admin on report bucket), CI deployer SA via Workload Identity Federation (no JSON keys). *(applied 2026-11-16)*
+- [x] `monitoring`: uptime checks on the Ingress, alert policies (pod restarts, DB down, 5xx rate), log-based metrics. *(applied 2026-11-16)*
+> **Build 2026-11-16:** `terraform apply` created 83 resources in ~10 min (Cloud SQL HA was the slow part). First run: 77/83 — the 6 Workload Identity bindings ran before the cluster (and its identity pool) existed; fixed by reading `workload_pool` from the cluster resource, then 6 added and a no-drift `plan` (exit 0). Verified with gcloud: GKE 1.36.4 RUNNING, control plane asia-south1-a, 3 × e2-medium nodes in zones a/b/c with no public IPs, Dataplane V2, Workload Identity pool; Cloud SQL PG16 Enterprise RUNNABLE, REGIONAL (primary c, standby b), PITR 7 days, private IP only, ENCRYPTED_ONLY; 4 secrets; Docker repo; reports + state buckets. kubectl connected via the DNS endpoint (needs `gke-gcloud-auth-plugin`); GKE Gateway classes available.
+
+> **Pause/resume 2026-11-16:** added `db_running` (Cloud SQL `activation_policy`) next to `nodes_per_zone`, so one `terraform apply` pauses or resumes without drift. Paused the same day: 0 VMs, 0 node disks, Cloud SQL STOPPED (REGIONAL kept), control plane RUNNING (free tier). Pause took ~4 min.
+
 - [ ] Deploy the app via `kubernetes/overlays/gke`; DNS (Cloud DNS) optional — the LB IP is enough for the project.
 
 **DoD:** `terraform apply` from scratch produces a working environment; app reachable via Cloud Load Balancer; e2e script passes in GCP; Cloud SQL HA + PITR verified enabled; `terraform destroy` + `apply` cycle documented and timed (feeds Scenario 6).

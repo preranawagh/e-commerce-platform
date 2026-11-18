@@ -6,8 +6,10 @@ output "location" {
   value = google_container_cluster.this.location
 }
 
+# Read from the cluster (not built from the project id) so anything using the
+# pool waits until the cluster exists — the pool is created with it.
 output "workload_pool" {
-  value = "${var.project_id}.svc.id.goog"
+  value = google_container_cluster.this.workload_identity_config[0].workload_pool
 }
 
 output "node_service_account" {

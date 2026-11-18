@@ -9,9 +9,8 @@ resource "google_artifact_registry_repository" "images" {
   description   = "CloudResilience application images"
   labels        = var.labels
 
-  docker_config {
-    immutable_tags = false # tags like "dev" are moved on each push
-  }
+  # Tags stay mutable (the default) so a tag like "dev" can move on each push;
+  # no docker_config block, since the API doesn't echo the default back.
 
   # Keep storage (and cost) small: drop untagged images after a week,
   # always keep the 5 newest versions of each image.

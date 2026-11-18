@@ -34,19 +34,26 @@ terraform plan -out=dev.tfplan                 # review what will be created
 terraform apply dev.tfplan                     # ~15–20 min, Cloud SQL is the slow part
 ```
 
-Then connect kubectl (the exact command is in the outputs):
+Then connect kubectl. It needs Google's sign-in plugin once (in a non-interactive shell, first set `CLOUDSDK_PYTHON` to a local Python 3 interpreter):
 
 ```bash
-terraform output -raw get_credentials_command
+gcloud components install gke-gcloud-auth-plugin
+terraform output -raw get_credentials_command   # prints the get-credentials command to run
 ```
+
+This makes the GKE cluster kubectl's current context. Switch back to the local cluster with `kubectl config use-context kind-cloudresilience`.
 
 ## Saving money between sessions
 
-| Action | How | Saves |
-| --- | --- | --- |
-| Pause nodes | `nodes_per_zone = 0` in `terraform.tfvars`, then `terraform apply` | Node cost (the cluster itself is free) |
-| Stop the database | `gcloud sql instances patch cloudresilience-pg --activation-policy=NEVER` (`ALWAYS` to start) | Cloud SQL compute; storage is still billed |
-| Remove everything | `terraform destroy` (set `db_deletion_protection = false` and apply first) | All of it; the state bucket stays |
+Pause and resume are two settings in `terraform.tfvars`, applied with `terraform apply` (preview first with `terraform plan`). Nothing is deleted: the database keeps its data and backups, and the cluster keeps its configuration.
+
+| Action | `terraform.tfvars` | Time | Cost while in this state |
+| --- | --- | --- | --- |
+| **Pause** | `nodes_per_zone = 0` and `db_running = false` | ~4 min | Database storage only (the GKE control plane is covered by the free tier) |
+| **Resume** | `nodes_per_zone = 1` and `db_running = true` (or remove both lines) | ~5–10 min | Everything running |
+| **Remove everything** | `db_deletion_protection = false`, apply, then `terraform destroy` | ~15 min | Nothing except the state bucket |
+
+Stop the database through Terraform (`db_running`), not with `gcloud sql instances patch`, so the code and the cloud don't drift apart. Pausing deletes the node VMs; workloads come back on new nodes when you resume.
 
 ## Notes
 

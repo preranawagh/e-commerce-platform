@@ -265,6 +265,8 @@ Shared (`kubernetes/base/`, `kubernetes/ingress/`):
 
 > **Pause/resume 2026-11-16:** added `db_running` (Cloud SQL `activation_policy`) next to `nodes_per_zone`, so one `terraform apply` pauses or resumes without drift. Paused the same day: 0 VMs, 0 node disks, Cloud SQL STOPPED (REGIONAL kept), control plane RUNNING (free tier). Pause took ~4 min.
 
+> **Images 2026-11-18 (Step 6):** 7 images built `--pull --no-cache` from commit `be255f6`, Trivy 0.76.1 gate (CRITICAL/HIGH) → 7 × CLEAN, pushed to `asia-south1-docker.pkg.dev/cloudresilience-dev/cloudresilience/<name>:be255f6` (repo ~143 MB). The first scan (commit `0b2e898`) blocked the push: follow-redirects 1.16.1 (CVE-2026-116689, HIGH) via axios in `shared/` and `order-service` → updated to 1.16.2; frontend still on Alpine 3.24.2 because Docker reused the cached `apk upgrade` layer → rebuilt without cache. Removed the Artifact Registry `delete-untagged` cleanup rule: BuildKit pushes an OCI index whose platform image and attestation are untagged, so the rule could have deleted the image behind a tag (only `keep-recent` remains).
+
 - [ ] Deploy the app via `kubernetes/overlays/gke`; DNS (Cloud DNS) optional — the LB IP is enough for the project.
 
 **DoD:** `terraform apply` from scratch produces a working environment; app reachable via Cloud Load Balancer; e2e script passes in GCP; Cloud SQL HA + PITR verified enabled; `terraform destroy` + `apply` cycle documented and timed (feeds Scenario 6).

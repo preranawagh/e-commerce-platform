@@ -12,18 +12,10 @@ resource "google_artifact_registry_repository" "images" {
   # Tags stay mutable (the default) so a tag like "dev" can move on each push;
   # no docker_config block, since the API doesn't echo the default back.
 
-  # Keep storage (and cost) small: drop untagged images after a week,
-  # always keep the 5 newest versions of each image.
+  # No automatic deletes: a pushed tag points to an image index whose platform
+  # image and attestation are untagged, so an "untagged" delete rule could break
+  # tagged images. Storage for a few versions costs only a few rupees a month.
   cleanup_policy_dry_run = false
-
-  cleanup_policies {
-    id     = "delete-untagged"
-    action = "DELETE"
-    condition {
-      tag_state  = "UNTAGGED"
-      older_than = "604800s"
-    }
-  }
 
   cleanup_policies {
     id     = "keep-recent"
